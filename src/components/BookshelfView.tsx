@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { MediaItem } from "@/types";
+import React, { useState, useMemo } from "react";
+import { MediaItem, ItemStatus } from "@/types";
 import {
   BookOpen,
   Star,
@@ -10,7 +10,9 @@ import {
   Calendar,
   Sparkles,
   X,
-  MessageSquare
+  MessageSquare,
+  RotateCcw,
+  Trash2
 } from "lucide-react";
 import {
   computePagesRead,
@@ -18,6 +20,7 @@ import {
   computeAverageRating,
   computeItemCounts
 } from "@/lib/mediaMetrics";
+import { deduplicateMediaItems } from "@/lib/searchFilters";
 import { BookshelfSection } from "@/components/BookshelfSection";
 import { CinemaTicketsSection } from "@/components/CinemaTicketsSection";
 import { TimelineSection } from "@/components/TimelineSection";
@@ -28,6 +31,8 @@ interface BookshelfViewProps {
   items: MediaItem[];
   onOpenReview: (item: MediaItem) => void;
   onOpenDetail: (item: MediaItem) => void;
+  onStatusChange?: (item: MediaItem, newStatus: ItemStatus) => void;
+  onDeleteItem?: (id: string) => void;
 }
 
 export type JourneyActiveSection = "all" | "books" | "movies" | "timeline";
@@ -35,15 +40,32 @@ export type JourneyActiveSection = "all" | "books" | "movies" | "timeline";
 export const BookshelfView: React.FC<BookshelfViewProps> = ({
   items,
   onOpenReview,
-  onOpenDetail
+  onOpenDetail,
+  onStatusChange,
+  onDeleteItem,
 }) => {
   const [activeSection, setActiveSection] = useState<JourneyActiveSection>("all");
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
 
-  // Filter only finished items
-  const finishedItems = items.filter((item) => item.status === "finished");
-  const finishedBooks = finishedItems.filter((item) => item.type === "book");
-  const finishedMovies = finishedItems.filter((item) => item.type !== "book");
+  const handleUnmarkCompleted = (item: MediaItem) => {
+    if (onStatusChange) {
+      onStatusChange(item, "to_experience");
+    }
+  };
+
+  const handleDeleteItem = (id: string) => {
+    if (onDeleteItem) {
+      onDeleteItem(id);
+    }
+  };
+
+  // Filter only finished items and ensure zero duplicates
+  const finishedItems = useMemo(
+    () => deduplicateMediaItems(items.filter((item: MediaItem) => item.status === "finished")),
+    [items]
+  );
+  const finishedBooks = finishedItems.filter((item: MediaItem) => item.type === "book");
+  const finishedMovies = finishedItems.filter((item: MediaItem) => item.type !== "book");
 
   // Metrics computed via pure utility functions
   const totalPagesRead = computePagesRead(finishedItems);
@@ -173,6 +195,8 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
           books={finishedBooks}
           onSelectBook={(book) => setSelectedItem(book)}
           onOpenReview={onOpenReview}
+          onUnmarkCompleted={handleUnmarkCompleted}
+          onDeleteBook={handleDeleteItem}
         />
       )}
 
@@ -182,6 +206,8 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
           movies={finishedMovies}
           onSelectMovie={(movie) => setSelectedItem(movie)}
           onOpenReview={onOpenReview}
+          onUnmarkCompleted={handleUnmarkCompleted}
+          onDeleteMovie={handleDeleteItem}
         />
       )}
 
@@ -191,6 +217,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
           items={finishedItems}
           onSelectItem={(item) => setSelectedItem(item)}
           onOpenReview={onOpenReview}
+          onUnmarkCompleted={handleUnmarkCompleted}
         />
       )}
 
@@ -316,19 +343,57 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
                 </div>
 
                 {/* Action Buttons */}
-                <div className="mt-5 pt-4 border-t border-theme-border flex items-center justify-between gap-3">
-                  <button
-                    onClick={() => {
-                      const item = selectedItem;
-                      setSelectedItem(null);
-                      onOpenDetail(item);
-                    }}
-                    className="text-xs text-text-muted hover:text-foreground underline"
-                  >
-                    View Full Details
-                  </button>
+                <div className="mt-5 pt-4 border-t border-theme-border flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const item = selectedItem;
+                        setSelectedItem(null);
+                        onOpenDetail(item);
+                      }}
+                      className="text-xs text-text-muted hover:text-foreground underline"
+                    >
+                      View Details
+                    </button>
+
+                    {onStatusChange && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const item = selectedItem;
+                          setSelectedItem(null);
+                          onStatusChange(item, "to_experience");
+                        }}
+                        className="text-xs text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 font-medium transition-colors"
+                        title={`Move back to active ${selectedItem.type === 'book' ? 'ReadList' : 'Watchlist'}`}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Unmark as Completed</span>
+                      </button>
+                    )}
+
+                    {onDeleteItem && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const item = selectedItem;
+                          if (confirm(`Remove "${item.title}" completely from your library?`)) {
+                            setSelectedItem(null);
+                            onDeleteItem(item.id);
+                          }
+                        }}
+                        className="text-xs text-rose-500 hover:underline flex items-center gap-1 font-medium transition-colors"
+                        title="Delete from library"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    )}
+                  </div>
 
                   <button
+                    type="button"
                     onClick={() => {
                       const item = selectedItem;
                       setSelectedItem(null);
@@ -337,7 +402,7 @@ export const BookshelfView: React.FC<BookshelfViewProps> = ({
                     className="px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-brand-primary-fg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
-                    Edit Thoughts & Review
+                    <span>Edit Thoughts & Review</span>
                   </button>
                 </div>
               </div>

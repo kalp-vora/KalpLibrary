@@ -1,5 +1,6 @@
 import { MediaItem, MediaType, SpineStyle } from "@/types";
 import { rankSearchResults } from "./searchRelevance";
+import { deduplicateSearchResults } from "./searchFilters";
 
 export interface SearchResultItem {
   id: string;
@@ -119,107 +120,13 @@ async function searchCinemeta(query: string): Promise<SearchResultItem[]> {
         criticRating: item.imdbRating ? parseFloat(item.imdbRating) : 8.5
       });
     }
-  } catch (err) {
-    console.warn("Cinemeta search failed:", err);
+  } catch {
+    // Graceful fallback for offline / rate-limited requests
   }
   return results;
 }
 
-// 2. Wikipedia (Universal Open Knowledge Base - covers all Indian & Korean cinema)
-async function searchWikipediaMovies(query: string): Promise<SearchResultItem[]> {
-  const results: SearchResultItem[] = [];
-  try {
-    // Search Wikipedia for films/dramas
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
-      query + " film OR movie OR drama"
-    )}&utf8=1&format=json&origin=*`;
-
-    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(4500) });
-    if (!searchRes.ok) return [];
-
-    const searchData = await searchRes.json();
-    const hits = searchData?.query?.search || [];
-
-    // Fetch summaries for top hits
-    const topHits = hits.slice(0, 5);
-    for (const hit of topHits) {
-      try {
-        const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`;
-        const sumRes = await fetch(summaryUrl, { signal: AbortSignal.timeout(3500) });
-        if (sumRes.ok) {
-          const sumData = await sumRes.json();
-          const title = sumData.title?.replace(/\s*\([^)]*\)$/, "") || hit.title;
-          const desc = sumData.description || "";
-          const extract = sumData.extract || "";
-
-          // Check if this article looks like a movie / film / drama
-          const isCinema =
-            desc.toLowerCase().includes("film") ||
-            desc.toLowerCase().includes("movie") ||
-            desc.toLowerCase().includes("series") ||
-            desc.toLowerCase().includes("drama") ||
-            extract.toLowerCase().includes("directed by") ||
-            extract.toLowerCase().includes("film");
-
-          if (!isCinema && hits.length > 3) continue;
-
-          // Extract year from description or extract (e.g. "2009 Indian Hindi-language film")
-          let releaseYear = new Date().getFullYear();
-          const yearMatch = desc.match(/\b(19\d{2}|20\d{2})\b/) || extract.match(/\b(19\d{2}|20\d{2})\b/);
-          if (yearMatch) releaseYear = parseInt(yearMatch[1], 10);
-
-          // Extract director if mentioned
-          let director = "Renowned Director";
-          const dirMatch = extract.match(/directed by ([A-Z][a-z]+ [A-Z][a-z]+(?: [A-Z][a-z]+)?)/i);
-          if (dirMatch) director = dirMatch[1];
-
-          // Determine genres/culture
-          const genres: string[] = [];
-          const lowerText = (desc + " " + extract).toLowerCase();
-          if (lowerText.includes("hindi") || lowerText.includes("bollywood") || lowerText.includes("indian")) {
-            genres.push("Bollywood");
-          }
-          if (lowerText.includes("korean") || lowerText.includes("south korea") || lowerText.includes("k-drama")) {
-            genres.push("Korean Cinema");
-          }
-          if (lowerText.includes("comedy")) genres.push("Comedy");
-          if (lowerText.includes("thriller")) genres.push("Thriller");
-          if (lowerText.includes("drama")) genres.push("Drama");
-          if (lowerText.includes("action")) genres.push("Action");
-          if (lowerText.includes("romance")) genres.push("Romance");
-          if (lowerText.includes("sci-fi") || lowerText.includes("science fiction")) genres.push("Sci-Fi");
-          if (genres.length === 0) genres.push("Cinema");
-
-          const posterUrl =
-            sumData.thumbnail?.source ||
-            "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=600&auto=format&fit=crop&q=80";
-
-          results.push({
-            id: `wiki-movie-${sumData.pageid || Math.random().toString(36).substring(2, 8)}`,
-            type: "movie",
-            title,
-            creator: director,
-            releaseYear,
-            releaseDate: `${releaseYear}`,
-            genres: genres.slice(0, 3),
-            description: extract || desc || `A celebrated cinematic production (${releaseYear}).`,
-            posterUrl,
-            source: "Wikipedia (Open Knowledge)",
-            lengthInfo: { runtimeMinutes: 125 },
-            criticRating: 8.7
-          });
-        }
-      } catch (e) {
-        // ignore individual summary failure
-      }
-    }
-  } catch (err) {
-    console.warn("Wikipedia movies search failed:", err);
-  }
-  return results;
-}
-
-// 3. iTunes Search API (HD artwork, official runtime and director)
+// 2. iTunes Search API (HD artwork, official runtime and director)
 async function searchItunesMovies(query: string): Promise<SearchResultItem[]> {
   const results: SearchResultItem[] = [];
   try {
@@ -262,13 +169,13 @@ async function searchItunesMovies(query: string): Promise<SearchResultItem[]> {
         }
       }
     }
-  } catch (err) {
-    console.warn("iTunes search failed:", err);
+  } catch {
+    // Graceful fallback for offline / rate-limited requests
   }
   return results;
 }
 
-// 4. TVmaze (Great for Korean dramas, series & international television)
+// 3. TVmaze (Great for Korean dramas, series & international television)
 async function searchTVmaze(query: string): Promise<SearchResultItem[]> {
   const results: SearchResultItem[] = [];
   try {
@@ -319,45 +226,36 @@ async function searchTVmaze(query: string): Promise<SearchResultItem[]> {
         }
       }
     }
-  } catch (err) {
-    console.warn("TVmaze search failed:", err);
+  } catch {
+    // Graceful fallback for offline / rate-limited requests
   }
   return results;
 }
 
-// Combined search across all open movie sources
+// Combined search across authentic open movie sources (Cinemeta, TVmaze, iTunes)
 export async function searchOnlineMovies(query: string): Promise<SearchResultItem[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  // Query Cinemeta, Wikipedia, iTunes, and TVmaze in parallel
-  const [cinemetaRes, wikiRes, itunesRes, tvmazeRes] = await Promise.allSettled([
+  // Query authentic media databases in parallel
+  const [cinemetaRes, tvmazeRes, itunesRes] = await Promise.allSettled([
     searchCinemeta(trimmed),
-    searchWikipediaMovies(trimmed),
-    searchItunesMovies(trimmed),
-    searchTVmaze(trimmed)
+    searchTVmaze(trimmed),
+    searchItunesMovies(trimmed)
   ]);
 
   const candidates: SearchResultItem[] = [];
-
   if (cinemetaRes.status === "fulfilled") candidates.push(...cinemetaRes.value);
-  if (wikiRes.status === "fulfilled") candidates.push(...wikiRes.value);
-  if (itunesRes.status === "fulfilled") candidates.push(...itunesRes.value);
   if (tvmazeRes.status === "fulfilled") candidates.push(...tvmazeRes.value);
+  if (itunesRes.status === "fulfilled") candidates.push(...itunesRes.value);
 
-  // Deduplicate by normalized title
-  const seenTitles = new Set<string>();
-  const deduplicated: SearchResultItem[] = [];
+  // Strictly filter to ensure no books ever leak into theater search
+  const screenOnly = candidates.filter((item) => item.type !== "book");
 
-  for (const item of candidates) {
-    const norm = item.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!seenTitles.has(norm)) {
-      seenTitles.add(norm);
-      deduplicated.push(item);
-    }
-  }
+  // Multi-source smart deduplication
+  const deduplicated = deduplicateSearchResults(screenOnly);
 
-  // If no live results came through (e.g. offline/isolated sandbox), use rich curated fallback
+  // If no live results came through (e.g. offline sandbox), check authentic curated movie fallback
   if (deduplicated.length === 0) {
     deduplicated.push(...getCuratedMovieFallback(trimmed));
   }
@@ -421,8 +319,8 @@ async function searchGoogleBooks(query: string): Promise<SearchResultItem[]> {
         }
       }
     }
-  } catch (err) {
-    console.warn("Google Books search failed:", err);
+  } catch {
+    // Graceful fallback for offline / rate-limited requests
   }
   return results;
 }
@@ -465,103 +363,74 @@ async function searchOpenLibrary(query: string): Promise<SearchResultItem[]> {
         }
       }
     }
-  } catch (err) {
-    console.warn("Open Library search failed:", err);
+  } catch {
+    // Graceful fallback for offline / rate-limited requests
   }
   return results;
 }
 
-// 3. Wikipedia Books (For international, Indian, Korean & world classics)
-async function searchWikipediaBooks(query: string): Promise<SearchResultItem[]> {
+// 3. Gutendex (Project Gutenberg Free Open Domain Classics)
+async function searchGutendexBooks(query: string): Promise<SearchResultItem[]> {
   const results: SearchResultItem[] = [];
   try {
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
-      query + " book OR novel"
-    )}&utf8=1&format=json&origin=*`;
-
-    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(4000) });
-    if (!searchRes.ok) return [];
-
-    const searchData = await searchRes.json();
-    const hits = searchData?.query?.search || [];
-
-    for (const hit of hits.slice(0, 3)) {
-      try {
-        const sumUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title)}`;
-        const sumRes = await fetch(sumUrl, { signal: AbortSignal.timeout(3500) });
-        if (sumRes.ok) {
-          const sumData = await sumRes.json();
-          const title = sumData.title?.replace(/\s*\([^)]*\)$/, "") || hit.title;
-          const desc = sumData.description || "";
-          const extract = sumData.extract || "";
-
-          let releaseYear = new Date().getFullYear();
-          const yearMatch = desc.match(/\b(18\d{2}|19\d{2}|20\d{2})\b/) || extract.match(/\b(18\d{2}|19\d{2}|20\d{2})\b/);
-          if (yearMatch) releaseYear = parseInt(yearMatch[1], 10);
-
-          let author = "Acclaimed Author";
-          const authMatch =
-            desc.match(/by ([A-Z][a-z]+ [A-Z][a-z]+)/) ||
-            extract.match(/written by ([A-Z][a-z]+ [A-Z][a-z]+)/i) ||
-            extract.match(/novel by ([A-Z][a-z]+ [A-Z][a-z]+)/i);
-          if (authMatch) author = authMatch[1];
-
-          const posterUrl = sumData.thumbnail?.source || "";
+    const res = await fetch(`https://gutendex.com/books/?search=${encodeURIComponent(query)}`, {
+      signal: AbortSignal.timeout(4000)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.results)) {
+        for (const item of data.results.slice(0, 8)) {
+          const title = item.title?.replace(/\r?\n/g, " ").trim() || query;
+          const author = item.authors?.map((a: any) => a.name).join(", ") || "Public Domain Author";
+          const genres = item.subjects?.slice(0, 3) || ["Classic Literature"];
+          const posterUrl = item.formats?.["image/jpeg"] || "";
 
           results.push({
-            id: `wiki-book-${sumData.pageid || Math.random().toString(36).substring(2, 8)}`,
+            id: `gutendex-${item.id || Math.random().toString(36).substring(2, 8)}`,
             type: "book",
             title,
             creator: author,
-            releaseYear,
-            releaseDate: `${releaseYear}`,
-            genres: ["Literature", "Novel"],
-            description: extract || desc || `A notable literary work published in ${releaseYear}.`,
+            releaseYear: 1900,
+            releaseDate: "Public Domain Classic",
+            genres,
+            description: `A celebrated open-domain classic by ${author}.`,
             posterUrl,
-            source: "Wikipedia (Open Knowledge)",
-            lengthInfo: { pages: 320 },
-            criticRating: 8.8
+            source: "Project Gutenberg (Gutendex)",
+            lengthInfo: { pages: 280 },
+            criticRating: 8.9
           });
         }
-      } catch (e) {
-        // ignore
       }
     }
-  } catch (err) {
-    console.warn("Wikipedia book search failed:", err);
+  } catch {
+    // Graceful fallback for offline / rate-limited requests
   }
   return results;
 }
 
-// Combined search across all open book sources
+// Combined search across all authentic open book sources
 export async function searchOnlineBooks(query: string): Promise<SearchResultItem[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const [googleRes, openLibRes, wikiRes] = await Promise.allSettled([
-    searchGoogleBooks(trimmed),
+  const [openLibRes, gutendexRes, googleRes] = await Promise.allSettled([
     searchOpenLibrary(trimmed),
-    searchWikipediaBooks(trimmed)
+    searchGutendexBooks(trimmed),
+    searchGoogleBooks(trimmed)
   ]);
 
   const candidates: SearchResultItem[] = [];
-  if (googleRes.status === "fulfilled") candidates.push(...googleRes.value);
   if (openLibRes.status === "fulfilled") candidates.push(...openLibRes.value);
-  if (wikiRes.status === "fulfilled") candidates.push(...wikiRes.value);
+  if (gutendexRes.status === "fulfilled") candidates.push(...gutendexRes.value);
+  if (googleRes.status === "fulfilled") candidates.push(...googleRes.value);
 
-  // Deduplicate by normalized title
-  const seenTitles = new Set<string>();
-  const deduplicated: SearchResultItem[] = [];
+  // Strictly filter to ensure only books (no screen media)
+  const booksOnly = candidates.filter((item) => item.type === "book");
 
-  for (const item of candidates) {
-    const norm = item.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!seenTitles.has(norm)) {
-      seenTitles.add(norm);
-      deduplicated.push(item);
-    }
-  }
+  // Multi-source smart deduplication
+  const deduplicated = deduplicateSearchResults(booksOnly);
 
-  // Fallback if offline
+  // If no live results came through, check authentic curated book fallback
   if (deduplicated.length === 0) {
     deduplicated.push(...getCuratedBookFallback(trimmed));
   }
@@ -807,6 +676,24 @@ function getCuratedMovieFallback(query: string): SearchResultItem[] {
       mins: 166,
       desc: "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.",
       poster: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80"
+    },
+    {
+      title: "The Avengers",
+      creator: "Joss Whedon",
+      releaseYear: 2012,
+      genres: ["Action", "Sci-Fi", "Adventure"],
+      mins: 143,
+      desc: "Earth's mightiest heroes must come together and learn to fight as a team to stop the mischievous Loki and his alien army from enslaving humanity.",
+      poster: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=600&auto=format&fit=crop&q=80"
+    },
+    {
+      title: "Avengers: Endgame",
+      creator: "Anthony and Joe Russo",
+      releaseYear: 2019,
+      genres: ["Action", "Sci-Fi", "Adventure"],
+      mins: 181,
+      desc: "After the devastating events of Infinity War, the universe is in ruins. With the help of remaining allies, the Avengers assemble once more in order to reverse Thanos' actions.",
+      poster: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=600&auto=format&fit=crop&q=80"
     }
   ];
 
@@ -817,19 +704,12 @@ function getCuratedMovieFallback(query: string): SearchResultItem[] {
       m.genres.some((g) => g.toLowerCase().includes(q))
   );
 
-  const pool = matched.length > 0 ? matched : [
-    {
-      title: query.charAt(0).toUpperCase() + query.slice(1),
-      creator: "Acclaimed Director",
-      releaseYear: 2024,
-      genres: ["Cinema", "Drama"],
-      mins: 125,
-      desc: `A powerful cinematic production directed by an acclaimed creator.`,
-      poster: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=600&auto=format&fit=crop&q=80"
-    }
-  ];
+  // Return only authentic matched movies; never fabricate fake titles
+  if (matched.length === 0) {
+    return [];
+  }
 
-  return pool.map((m, idx) => ({
+  return matched.map((m, idx) => ({
     id: `movie-match-${idx}-${Date.now()}`,
     type: "movie",
     title: m.title,
@@ -961,6 +841,24 @@ function getCuratedBookFallback(query: string): SearchResultItem[] {
       pages: 320,
       desc: "An easy and proven way to build good habits and break bad ones using tiny changes.",
       poster: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80"
+    },
+    {
+      title: "The Hobbit",
+      creator: "J.R.R. Tolkien",
+      releaseYear: 1937,
+      genres: ["Fantasy", "Classic", "Adventure"],
+      pages: 310,
+      desc: "Bilbo Baggins, a hobbit enjoying a comfortable and unpretentious life, is swept into an epic quest by the wizard Gandalf and thirteen dwarves to reclaim the Lonely Mountain from Smaug.",
+      poster: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80"
+    },
+    {
+      title: "Frankenstein",
+      creator: "Mary Shelley",
+      releaseYear: 1818,
+      genres: ["Gothic Horror", "Sci-Fi", "Classic"],
+      pages: 280,
+      desc: "A young scientist creates a sentient creature in an unorthodox scientific experiment, exploring the unintended consequences of human ambition.",
+      poster: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=600&auto=format&fit=crop&q=80"
     }
   ];
 
@@ -971,19 +869,12 @@ function getCuratedBookFallback(query: string): SearchResultItem[] {
       b.genres.some((g) => g.toLowerCase().includes(q))
   );
 
-  const pool = matched.length > 0 ? matched : [
-    {
-      title: query.charAt(0).toUpperCase() + query.slice(1),
-      creator: "Acclaimed Author",
-      releaseYear: 2023,
-      genres: ["Literature", "Novel"],
-      pages: 320,
-      desc: `A captivating literary work exploring human depth and imagination.`,
-      poster: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80"
-    }
-  ];
+  // Return only authentic matched books; never fabricate fake titles
+  if (matched.length === 0) {
+    return [];
+  }
 
-  return pool.map((b, idx) => ({
+  return matched.map((b, idx) => ({
     id: `book-match-${idx}-${Date.now()}`,
     type: "book",
     title: b.title,

@@ -6,6 +6,7 @@ import { MediaItem, MoodMatchResult } from "@/types";
 import { Sparkles, RefreshCw, Flame, ArrowRight, X } from "lucide-react";
 import { BookCover } from "@/components/BookCover";
 import { MovieCover } from "@/components/MovieCover";
+import { useModalDismiss } from "@/lib/useModalDismiss";
 
 interface MoodMatcherModalProps {
   items: MediaItem[];
@@ -25,6 +26,11 @@ export const MoodMatcherModal: React.FC<MoodMatcherModalProps> = ({
   const [moodDescription, setMoodDescription] = useState("");
   const [result, setResult] = useState<MoodMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+  });
 
   const moodMutation = useMutation({
     mutationFn: async (textToSearch: string) => {
@@ -75,8 +81,16 @@ export const MoodMatcherModal: React.FC<MoodMatcherModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-surface-card rounded-3xl border border-theme-border p-6 sm:p-8 shadow-2xl my-8 text-foreground animate-fade-in-up">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md animate-fade-in cursor-pointer select-none"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="relative w-full max-w-2xl max-h-[min(90vh,760px)] overflow-y-auto overscroll-contain bg-surface-card rounded-3xl border border-theme-border p-5 sm:p-8 shadow-2xl my-auto text-foreground animate-fade-in-up cursor-default select-text"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-start justify-between pb-4 border-b border-theme-border">
           <div className="flex items-center gap-3">

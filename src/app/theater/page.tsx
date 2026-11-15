@@ -125,6 +125,8 @@ function TheaterContent() {
         type={theatreCategory === "all" ? "movie" : theatreCategory}
         onAddItem={onAddItem}
         existingItemTitles={existingTitles}
+        existingItems={items}
+        onOpenReview={onOpenReview}
       />
 
       {/* Saved Cinema & Series Section */}

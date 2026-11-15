@@ -63,7 +63,7 @@ export class ReviewModalPom {
     this.thoughtsInput = this.modal.locator("textarea[placeholder*='thought' i], textarea").last();
     this.favoriteQuoteInput = this.modal.locator("input[placeholder*='memorable' i]");
     this.recommendToInput = this.modal.locator("input[placeholder*='recommend' i]");
-    this.saveReviewBtn = this.modal.getByRole("button", { name: /save & place on shelf/i });
+    this.saveReviewBtn = this.modal.getByRole("button", { name: /save & (place on shelf|add ticket to vault)/i });
   }
 
   async setRating(rating: number) {

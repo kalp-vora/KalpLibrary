@@ -11,7 +11,8 @@ import {
   ArrowUpDown,
   Calendar,
   MessageSquare,
-  CheckCircle2
+  CheckCircle2,
+  RotateCcw
 } from "lucide-react";
 import {
   buildTimelineEntries,
@@ -25,12 +26,14 @@ interface TimelineSectionProps {
   items: MediaItem[];
   onSelectItem: (item: MediaItem) => void;
   onOpenReview: (item: MediaItem) => void;
+  onUnmarkCompleted?: (item: MediaItem) => void;
 }
 
 export const TimelineSection: React.FC<TimelineSectionProps> = ({
   items,
   onSelectItem,
-  onOpenReview
+  onOpenReview,
+  onUnmarkCompleted,
 }) => {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [filterType, setFilterType] = useState<"all" | "book" | "movie">("all");
@@ -242,7 +245,7 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({
                           )}
 
                           {/* Action Links */}
-                          <div className="mt-3 pt-2.5 border-t border-theme-border flex items-center justify-between text-xs">
+                          <div className="mt-3 pt-2.5 border-t border-theme-border flex flex-wrap items-center justify-between gap-2 text-xs">
                             <button
                               onClick={() => onSelectItem(item)}
                               className="text-brand-primary hover:underline font-medium text-[11px]"
@@ -250,13 +253,27 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({
                               View Reflections
                             </button>
 
-                            <button
-                              onClick={() => onOpenReview(item)}
-                              className="text-text-muted hover:text-foreground flex items-center gap-1 text-[11px]"
-                            >
-                              <MessageSquare className="w-3 h-3" />
-                              <span>{item.review?.takeaways ? "Edit Journal" : "Add Reflections"}</span>
-                            </button>
+                            <div className="flex items-center gap-3">
+                              {onUnmarkCompleted && (
+                                <button
+                                  type="button"
+                                  onClick={() => onUnmarkCompleted(item)}
+                                  className="text-text-muted hover:text-amber-500 flex items-center gap-1 text-[11px] transition-colors"
+                                  title={`Unmark as completed and return to ${isBook ? 'ReadList' : 'Watchlist'}`}
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Unmark</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => onOpenReview(item)}
+                                className="text-text-muted hover:text-foreground flex items-center gap-1 text-[11px]"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                                <span>{item.review?.takeaways ? "Edit Journal" : "Add Reflections"}</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>

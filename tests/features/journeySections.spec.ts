@@ -126,4 +126,30 @@ test.describe("Feature Tests - Journey Sections, Bookshelf Levels, Cinema Ticket
     await expect(journey.timelineSection).toBeVisible();
     await expect(journey.bookshelfSection).not.toBeVisible();
   });
+
+  test("User can unmark a book or movie as completed to remove them from Journey", async ({ page }) => {
+    const journey = new JourneyPage(page);
+    await journey.goto();
+
+    // Verify initial milestone count is 2
+    await expect(journey.milestonesReachedCount).toContainText("2");
+
+    // Click Dune book spine to open Reflections Exhibit Modal
+    await page.locator(".book-spine").first().click();
+    await expect(page.locator("h2:has-text('Dune')")).toBeVisible();
+
+    // Click "Unmark as Completed"
+    const unmarkBtn = page.getByRole("button", { name: /unmark as completed/i });
+    await expect(unmarkBtn).toBeVisible();
+    await unmarkBtn.click();
+
+    // Verify milestones reached decremented to 1
+    await expect(journey.milestonesReachedCount).toContainText("1");
+    await expect(page.locator(".book-spine")).not.toBeVisible();
+
+    // Navigate to Lists to verify Dune returned to ReadList queue
+    await page.locator("nav a:has-text('Watchlist & ReadList')").click();
+    await expect(page).toHaveURL(/\/lists/);
+    await expect(page.locator("h3:has-text('Dune')")).toBeVisible();
+  });
 });

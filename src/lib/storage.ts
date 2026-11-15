@@ -1,6 +1,7 @@
 import { MediaItem } from "@/types";
 import { isSampleItem } from "./sampleData";
 import { getFirebaseInstance, isFirebaseConfigured } from "./firebase";
+import { isSameMediaItem, deduplicateMediaItems } from "./searchFilters";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
@@ -31,8 +32,8 @@ export class StorageService {
       const parsed: MediaItem[] = JSON.parse(data);
       if (!Array.isArray(parsed)) return [];
 
-      // Filter out any legacy sample/dummy items
-      const cleaned = parsed.filter((item) => !isSampleItem(item));
+      // Filter out any legacy sample/dummy items and deduplicate
+      const cleaned = deduplicateMediaItems(parsed.filter((item) => !isSampleItem(item)));
       if (cleaned.length !== parsed.length) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
       }
@@ -47,8 +48,9 @@ export class StorageService {
   static saveLocalItems(items: MediaItem[]): void {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      this.notifySubscribers(items);
+      const deduped = deduplicateMediaItems(items);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(deduped));
+      this.notifySubscribers(deduped);
     } catch (e) {
       console.error("Failed to save local items:", e);
     }
@@ -157,13 +159,25 @@ export class StorageService {
       createdAt: item.createdAt || now,
     };
 
-    // Update in localStorage first
+    // Update in localStorage first (prevent duplicate items for the same media)
     const current = this.getLocalItems();
-    const index = current.findIndex((i) => i.id === item.id);
+    const index = current.findIndex(
+      (i) => i.id === item.id || (i.type === item.type && isSameMediaItem(i, item))
+    );
     let nextList: MediaItem[];
+    let targetItemToSync = updatedItem;
+
     if (index >= 0) {
+      const existing = current[index];
+      targetItemToSync = {
+        ...existing,
+        ...updatedItem,
+        id: existing.id, // Preserve existing ID
+        status: updatedItem.status || existing.status,
+        updatedAt: now,
+      };
       nextList = [...current];
-      nextList[index] = updatedItem;
+      nextList[index] = targetItemToSync;
     } else {
       nextList = [updatedItem, ...current];
     }
@@ -179,9 +193,9 @@ export class StorageService {
           }
           const user = auth.currentUser;
           if (user) {
-            const cleaned = JSON.parse(JSON.stringify(updatedItem));
+            const cleaned = JSON.parse(JSON.stringify(targetItemToSync));
             cleaned.userId = user.uid;
-            const userDocRef = doc(db, "users", user.uid, "library_items", updatedItem.id);
+            const userDocRef = doc(db, "users", user.uid, "library_items", targetItemToSync.id);
             await setDoc(userDocRef, cleaned, { merge: true });
           }
           // ponytail: unauthenticated users persist in localStorage only, avoiding Firestore permission-denied

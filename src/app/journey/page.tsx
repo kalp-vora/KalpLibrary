@@ -4,13 +4,15 @@ import { AppShell, useApp } from "@/components/AppShell";
 import { BookshelfView } from "@/components/BookshelfView";
 
 function JourneyContent() {
-  const { items, onOpenReview, onOpenDetail } = useApp();
+  const { items, onOpenReview, onOpenDetail, onStatusChange, onDeleteItem } = useApp();
 
   return (
     <BookshelfView
       items={items}
       onOpenReview={onOpenReview}
       onOpenDetail={onOpenDetail}
+      onStatusChange={onStatusChange}
+      onDeleteItem={onDeleteItem}
     />
   );
 }

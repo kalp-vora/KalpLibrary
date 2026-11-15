@@ -1,25 +1,29 @@
 # Graph Report - KalpLibrary  (2026-11-15)
 
 ## Corpus Check
-- 85 files · ~43,667 words
+- 87 files · ~47,044 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 455 nodes · 946 edges · 30 communities (14 shown, 11 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
+- 464 nodes · 1000 edges · 30 communities (14 shown, 11 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 2 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
+## Graph Freshness
+- Built from commit: `eefd5712`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
+
 ## Community Hubs (Navigation)
-- MediaItem
+- index.ts
 - BookshelfView.tsx
 - dependencies
 - compilerOptions
 - devDependencies
-- AppShell.tsx
 - library/page.tsx
 - OnlineSearchSection.tsx
 - moodMatcher.ts
-- ThemeContext.tsx
+- MediaItem
 - next.config.ts
 - ConciergeView.tsx
 - tailwind.config.ts
@@ -35,16 +39,17 @@
 - BasePage
 - TheaterPage
 - JourneyPage
+- TimelineSection.tsx
 
 ## God Nodes (most connected - your core abstractions)
 1. `MediaItem` - 51 edges
 2. `getFirebaseInstance()` - 20 edges
 3. `BasePage` - 20 edges
 4. `MediaType` - 18 edges
-5. `AppShell()` - 16 edges
-6. `BookCover()` - 16 edges
-7. `MovieCover()` - 16 edges
-8. `ItemStatus` - 16 edges
+5. `ItemStatus` - 18 edges
+6. `AppShell()` - 17 edges
+7. `BookCover()` - 16 edges
+8. `MovieCover()` - 16 edges
 9. `compilerOptions` - 16 edges
 10. `fireCelebration()` - 15 edges
 
@@ -53,10 +58,10 @@
   src/app/page.tsx → src/components/AppShell.tsx
 - `BookshelfSectionProps` --references--> `MediaItem`  [EXTRACTED]
   src/components/BookshelfSection.tsx → src/types/index.ts
-- `BookshelfViewProps` --references--> `MediaItem`  [EXTRACTED]
-  src/components/BookshelfView.tsx → src/types/index.ts
 - `CinemaTicketsSectionProps` --references--> `MediaItem`  [EXTRACTED]
   src/components/CinemaTicketsSection.tsx → src/types/index.ts
+- `MoodMatcherModalProps` --references--> `MediaItem`  [EXTRACTED]
+  src/components/MoodMatcherModal.tsx → src/types/index.ts
 - `OnlineSearchSectionProps` --references--> `MediaItem`  [EXTRACTED]
   src/components/OnlineSearchSection.tsx → src/types/index.ts
 
@@ -65,13 +70,13 @@
 
 ## Communities (30 total, 11 thin omitted)
 
-### Community 0 - "MediaItem"
+### Community 0 - "index.ts"
 Cohesion: 0.07
-Nodes (54): AppContextType, BookCover(), BookCoverProps, DetailModal(), DetailModalProps, STATUS_OPTIONS, MEDIA_TYPE_ICONS, MediaCard() (+46 more)
+Nodes (53): AppContextType, BookCover(), BookCoverProps, BookshelfViewProps, DetailModal(), DetailModalProps, STATUS_OPTIONS, MEDIA_TYPE_ICONS (+45 more)
 
 ### Community 1 - "BookshelfView.tsx"
-Cohesion: 0.13
-Nodes (23): BookshelfSection(), BookshelfSectionProps, BookshelfView(), BookshelfViewProps, JourneyActiveSection, CinemaTicketsSection(), CinemaTicketsSectionProps, TicketStub() (+15 more)
+Cohesion: 0.18
+Nodes (18): BookshelfSection(), BookshelfSectionProps, BookshelfView(), JourneyActiveSection, CinemaTicketsSection(), CinemaTicketsSectionProps, MEDIA_ICONS, QueueListView() (+10 more)
 
 ### Community 2 - "dependencies"
 Cohesion: 0.11
@@ -83,27 +88,23 @@ Nodes (27): dom, dom.iterable, esnext, .next/dev/types/**/*.ts, next-env.d.ts, .
 
 ### Community 4 - "devDependencies"
 Cohesion: 0.06
-Nodes (31): autoprefixer, devDependencies, autoprefixer, @playwright/test, postcss, tailwindcss, @types/canvas-confetti, @types/node (+23 more)
-
-### Community 5 - "AppShell.tsx"
-Cohesion: 0.09
-Nodes (31): LoginPage(), AppContext, AppShell(), AppShellProps, Footer(), FooterProps, Navbar(), NavbarProps (+23 more)
+Nodes (32): autoprefixer, devDependencies, autoprefixer, @playwright/test, postcss, tailwindcss, @types/canvas-confetti, @types/node (+24 more)
 
 ### Community 6 - "library/page.tsx"
-Cohesion: 0.13
-Nodes (13): JourneyContent(), LibraryContent(), ListsContent(), TheaterContent(), useApp(), QueueListView(), computeGenreBreakdown(), BOOKSHELF_SORT_STRATEGIES (+5 more)
+Cohesion: 0.14
+Nodes (13): JourneyContent(), LibraryContent(), ListsContent(), TheaterContent(), useApp(), MediaCard(), computeGenreBreakdown(), BOOKSHELF_SORT_STRATEGIES (+5 more)
 
 ### Community 7 - "OnlineSearchSection.tsx"
 Cohesion: 0.11
-Nodes (30): GET(), OnlineSearchSection(), OnlineSearchSectionProps, SearchBar(), SearchBarProps, SuggestionItem, generateSpineStyle(), getCuratedBookFallback() (+22 more)
+Nodes (31): GET(), OnlineSearchSection(), OnlineSearchSectionProps, SearchBar(), SearchBarProps, SuggestionItem, getStatusConfig(), generateSpineStyle() (+23 more)
 
 ### Community 8 - "moodMatcher.ts"
-Cohesion: 0.43
-Nodes (6): POST(), matchItemByMood(), matchWithClaude(), matchWithGemini(), matchWithLocalHeuristics(), MoodMatchParams
+Cohesion: 0.36
+Nodes (7): POST(), matchItemByMood(), matchWithClaude(), matchWithGemini(), matchWithLocalHeuristics(), MoodMatchParams, MoodMatchResult
 
-### Community 9 - "ThemeContext.tsx"
-Cohesion: 0.19
-Nodes (9): metadata, QueryProvider(), ThemeToggle(), ThemeToggleProps, Theme, ThemeContext, ThemeContextType, ThemeProvider() (+1 more)
+### Community 9 - "MediaItem"
+Cohesion: 0.08
+Nodes (40): metadata, LoginPage(), AppContext, AppShell(), AppShellProps, Footer(), FooterProps, Navbar() (+32 more)
 
 ### Community 11 - "ConciergeView.tsx"
 Cohesion: 0.11
@@ -121,25 +122,29 @@ Nodes (8): 1. High-Level Entity Relationship Model, 2. Document Specifications, 
 Cohesion: 0.29
 Nodes (6): 1. Install Dependencies, 2. Run the Development Server, 3. Optional: Configure Firebase & AI Keys, ✨ Features, 🚀 Getting Started, Kalp Library — Books, Films & Curated Thoughts 📚🎬
 
+### Community 30 - "TimelineSection.tsx"
+Cohesion: 0.27
+Nodes (10): TicketStub(), TicketStubProps, TimelineSection(), TimelineSectionProps, buildTimelineEntries(), formatCompletionDate(), getItemCompletionTimestamp(), groupTimelineByPeriod() (+2 more)
+
 ## Knowledge Gaps
-- **125 isolated node(s):** `nextConfig`, `name`, `version`, `private`, `dev` (+120 more)
+- **127 isolated node(s):** `nextConfig`, `name`, `version`, `private`, `dev` (+122 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 185 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `MediaItem` connect `MediaItem` to `BookshelfView.tsx`, `AppShell.tsx`, `library/page.tsx`, `OnlineSearchSection.tsx`, `moodMatcher.ts`, `ConciergeView.tsx`?**
-  _High betweenness centrality (0.079) - this node is a cross-community bridge._
-- **Why does `getFirebaseInstance()` connect `AppShell.tsx` to `ThemeContext.tsx`, `ConciergeView.tsx`, `OnlineSearchSection.tsx`?**
+- **Why does `MediaItem` connect `MediaItem` to `index.ts`, `BookshelfView.tsx`, `library/page.tsx`, `OnlineSearchSection.tsx`, `moodMatcher.ts`, `ConciergeView.tsx`, `TimelineSection.tsx`?**
+  _High betweenness centrality (0.075) - this node is a cross-community bridge._
+- **Why does `getFirebaseInstance()` connect `MediaItem` to `ConciergeView.tsx`, `OnlineSearchSection.tsx`?**
   _High betweenness centrality (0.022) - this node is a cross-community bridge._
-- **Why does `MediaType` connect `MediaItem` to `ConciergeView.tsx`, `OnlineSearchSection.tsx`?**
+- **Why does `BasePage` connect `BasePage` to `routes.smoke.spec.ts`, `LibraryPage`, `LoginPage`, `ConciergePage`, `TheaterPage`, `JourneyPage`?**
   _High betweenness centrality (0.010) - this node is a cross-community bridge._
 - **What connects `nextConfig`, `name`, `version` to the rest of the system?**
-  _125 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `MediaItem` be split into smaller, more focused modules?**
-  _Cohesion score 0.07289002557544758 - nodes in this community are weakly interconnected._
-- **Should `BookshelfView.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.1310344827586207 - nodes in this community are weakly interconnected._
+  _127 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `index.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.06919945725915876 - nodes in this community are weakly interconnected._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.10526315789473684 - nodes in this community are weakly interconnected._
+- **Should `compilerOptions` be split into smaller, more focused modules?**
+  _Cohesion score 0.07142857142857142 - nodes in this community are weakly interconnected._

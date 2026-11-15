@@ -15,6 +15,7 @@ import {
   terminateAuthSession,
   purgeLegacyUserStorage
 } from "@/lib/authSession";
+import { isSameMediaItem } from "@/lib/searchFilters";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { ReviewModal } from "@/components/ReviewModal";
@@ -192,10 +193,24 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   });
 
   const handleAddItem = async (item: MediaItem) => {
+    // Prevent duplicate entries for the same media title and type
+    const existing = items.find(
+      (existing) => existing.type === item.type && isSameMediaItem(existing, item)
+    );
+    if (existing) {
+      if (existing.status !== item.status) {
+        await statusChangeMutation.mutateAsync({ item: existing, newStatus: item.status });
+      }
+      return;
+    }
     await saveItemMutation.mutateAsync(item);
   };
 
   const handleStatusChange = async (item: MediaItem, newStatus: ItemStatus) => {
+    if (newStatus === "finished") {
+      handleMarkFinished(item);
+      return;
+    }
     await statusChangeMutation.mutateAsync({ item, newStatus });
   };
 

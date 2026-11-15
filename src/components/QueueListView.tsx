@@ -16,7 +16,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { getMediaConfig } from "@/lib/mediaConfig";
-import { filterMediaBySearch } from "@/lib/searchFilters";
+import { filterMediaBySearch, deduplicateMediaItems } from "@/lib/searchFilters";
 import { BookCover } from "@/components/BookCover";
 import { MovieCover } from "@/components/MovieCover";
 import { fireCelebration } from "@/lib/celebrate";
@@ -52,7 +52,9 @@ export const QueueListView: React.FC<QueueListViewProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
 
   const queueItems = useMemo(() => {
-    return items.filter((item) => item.status === "to_experience" || item.status === "in_progress");
+    return deduplicateMediaItems(
+      items.filter((item) => item.status === "to_experience" || item.status === "in_progress")
+    );
   }, [items]);
 
   const inProgressItems = useMemo(() => {

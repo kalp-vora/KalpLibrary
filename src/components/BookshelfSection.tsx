@@ -8,7 +8,9 @@ import {
   Star,
   MessageSquare,
   CheckCircle2,
-  BookMarked
+  BookMarked,
+  RotateCcw,
+  Trash2
 } from "lucide-react";
 import { chunkIntoShelves } from "@/lib/mediaMetrics";
 import { BookCover } from "@/components/BookCover";
@@ -18,12 +20,16 @@ interface BookshelfSectionProps {
   books: MediaItem[];
   onSelectBook: (book: MediaItem) => void;
   onOpenReview: (book: MediaItem) => void;
+  onUnmarkCompleted?: (book: MediaItem) => void;
+  onDeleteBook?: (id: string) => void;
 }
 
 export const BookshelfSection: React.FC<BookshelfSectionProps> = ({
   books,
   onSelectBook,
-  onOpenReview
+  onOpenReview,
+  onUnmarkCompleted,
+  onDeleteBook,
 }) => {
   const [viewMode, setViewMode] = useState<"shelf" | "grid">("shelf");
 
@@ -264,18 +270,49 @@ export const BookshelfSection: React.FC<BookshelfSectionProps> = ({
                   </div>
 
                   {/* Card Footer */}
-                  <div className="mt-4 pt-3 border-t border-theme-border flex items-center justify-between text-xs text-text-muted">
+                  <div className="mt-4 pt-3 border-t border-theme-border flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
                     <span className="font-mono text-[11px]">
                       {book.lengthInfo?.pages ? `${book.lengthInfo.pages} pages` : "Completed"}
                     </span>
 
-                    <button
-                      onClick={() => onOpenReview(book)}
-                      className="text-brand-primary hover:text-brand-primary-hover font-semibold text-xs flex items-center gap-1"
-                    >
-                      <MessageSquare className="w-3 h-3" />
-                      <span>{book.review?.takeaways ? "Edit Journal" : "Add Reflections"}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {onUnmarkCompleted && (
+                        <button
+                          type="button"
+                          onClick={() => onUnmarkCompleted(book)}
+                          className="text-text-muted hover:text-amber-500 font-medium text-xs flex items-center gap-1 transition-colors"
+                          title="Unmark as completed and return to ReadList"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Unmark</span>
+                        </button>
+                      )}
+
+                      {onDeleteBook && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Delete "${book.title}" from your library?`)) {
+                              onDeleteBook(book.id);
+                            }
+                          }}
+                          className="text-text-muted hover:text-rose-500 font-medium text-xs flex items-center gap-1 transition-colors"
+                          title="Delete completely from library"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Delete</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => onOpenReview(book)}
+                        className="text-brand-primary hover:text-brand-primary-hover font-semibold text-xs flex items-center gap-1"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>{book.review?.takeaways ? "Journal" : "Add Reflections"}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

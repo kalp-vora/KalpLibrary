@@ -7,6 +7,7 @@ import { getMediaConfig } from "@/lib/mediaConfig";
 import { BookCover } from "@/components/BookCover";
 import { MovieCover } from "@/components/MovieCover";
 import { BOOK_COVER_SWATCHES } from "@/lib/bookCoverTheme";
+import { useModalDismiss } from "@/lib/useModalDismiss";
 
 const STATUS_OPTIONS: Array<{ status: ItemStatus; label: string; title: string }> = [
   { status: "to_experience", label: "Queue", title: "To Experience" },
@@ -35,6 +36,11 @@ export const DetailModal: React.FC<DetailModalProps> = ({
 }) => {
   const [selectedColor, setSelectedColor] = useState<string>(item?.spineStyle?.color || "");
 
+  const { handleBackdropClick } = useModalDismiss({
+    isOpen,
+    onClose,
+  });
+
   useEffect(() => {
     if (item?.spineStyle?.color) {
       setSelectedColor(item.spineStyle.color);
@@ -54,12 +60,20 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-3xl bg-surface-card text-foreground rounded-3xl border border-theme-border p-6 sm:p-9 shadow-2xl my-8 animate-fade-in-up">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/80 backdrop-blur-md animate-fade-in cursor-pointer select-none"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="relative w-full max-w-3xl max-h-[min(90vh,800px)] overflow-y-auto overscroll-contain bg-surface-card text-foreground rounded-3xl border border-theme-border p-5 sm:p-8 shadow-2xl my-auto animate-fade-in-up cursor-default select-text"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Top Close */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-text-subtle hover:text-foreground p-2 rounded-xl hover:bg-surface transition-colors z-20 flex items-center gap-1 text-xs font-semibold"
+          className="absolute top-4 right-4 sm:top-5 sm:right-5 text-text-subtle hover:text-foreground p-2 rounded-xl hover:bg-surface border border-theme-border/50 transition-colors z-20 flex items-center gap-1 text-xs font-semibold"
         >
           <span>Close</span>
           <X className="w-4 h-4 ml-1" />
@@ -95,14 +109,21 @@ export const DetailModal: React.FC<DetailModalProps> = ({
             {/* Quick Status Control */}
             <div className="w-full max-w-[240px] mt-5 space-y-2">
               <label className="text-[10px] font-mono uppercase tracking-widest text-text-subtle block text-center">
-                Reading Status
+                {isBook ? "Reading Status" : "Viewing Status"}
               </label>
               <div className="grid grid-cols-3 gap-1 bg-surface p-1 rounded-xl border border-theme-border">
                 {STATUS_OPTIONS.map((opt) => (
                   <button
                     key={opt.status}
                     type="button"
-                    onClick={() => onStatusChange(item, opt.status)}
+                    onClick={() => {
+                      if (opt.status === "finished") {
+                        onClose();
+                        onOpenReview(item);
+                      } else {
+                        onStatusChange(item, opt.status);
+                      }
+                    }}
                     className={`py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                       item.status === opt.status
                         ? "bg-brand-primary text-brand-primary-fg font-semibold shadow-sm"

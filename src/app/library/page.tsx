@@ -43,6 +43,8 @@ function LibraryContent() {
         type="book"
         onAddItem={onAddItem}
         existingItemTitles={existingTitles}
+        existingItems={items}
+        onOpenReview={onOpenReview}
       />
 
       {/* Saved Books Section */}

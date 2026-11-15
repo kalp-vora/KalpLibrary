@@ -13,12 +13,18 @@ export async function GET(req: NextRequest) {
 
     if (type === "book") {
       const results = await searchOnlineBooks(query);
-      return NextResponse.json({ success: true, results });
+      const filtered = results.filter((r) => r.type === "book");
+      return NextResponse.json({ success: true, results: filtered });
     }
 
-    if (type === "tv" || type === "anime") {
+    if (type === "movie" || type === "tv" || type === "anime") {
       const results = await searchOnlineMovies(query);
-      const tagged = results.map((r) => ({ ...r, type: type as any }));
+      // Strictly guarantee no books appear in theater search
+      const filtered = results.filter((r) => r.type !== "book");
+      const tagged = filtered.map((r) => ({
+        ...r,
+        type: type === "movie" ? (r.type || "movie") : (type as any)
+      }));
       return NextResponse.json({ success: true, results: tagged });
     }
 
@@ -28,7 +34,10 @@ export async function GET(req: NextRequest) {
       searchOnlineMovies(query)
     ]);
 
-    return NextResponse.json({ success: true, results: [...books, ...movies] });
+    const cleanBooks = books.filter((r) => r.type === "book");
+    const cleanMovies = movies.filter((r) => r.type !== "book");
+
+    return NextResponse.json({ success: true, results: [...cleanBooks, ...cleanMovies] });
   } catch (error: any) {
     console.error("Search API route error:", error);
     return NextResponse.json(

@@ -152,7 +152,14 @@ export const MediaCard: React.FC<MediaCardProps> = ({
           {/* Status Quick Toggle */}
           <select
             value={item.status}
-            onChange={(e) => onStatusChange(item, e.target.value as ItemStatus)}
+            onChange={(e) => {
+              const val = e.target.value as ItemStatus;
+              if (val === "finished") {
+                onOpenReview(item);
+              } else {
+                onStatusChange(item, val);
+              }
+            }}
             className="text-xs bg-surface border border-theme-border text-foreground rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand-primary shadow-sm"
           >
             <option value="to_experience">To {mediaConfig.verb}</option>
@@ -174,10 +181,10 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             <button
               onClick={() => {
                 fireCelebration();
-                onStatusChange(item, "finished");
+                onOpenReview(item);
               }}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-primary hover:bg-brand-primary-hover text-brand-primary-fg shadow-sm transition-all active:scale-95"
-              title={`Mark ${mediaConfig.label} as ${mediaConfig.markVerb}`}
+              title={`Mark ${mediaConfig.label} as ${mediaConfig.markVerb} and leave thoughts`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>{mediaConfig.markVerb}</span>
