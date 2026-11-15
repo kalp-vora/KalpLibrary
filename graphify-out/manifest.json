@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "src/components/SearchBar.tsx": {
-    "mtime": 1794750993.6481085,
-    "seen": 1794757758.6239963,
-    "ast_hash": "b542a49513e57104d82a4c0d87bc844d",
+    "mtime": 1794761575.3168035,
+    "seen": 1794761692.5308359,
+    "ast_hash": "77845226b1983987e5fe89fb3e0446fa",
     "semantic_hash": ""
   },
   "src/components/ThemeToggle.tsx": {
@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "src/lib/onlineResources.ts": {
-    "mtime": 1794757917.5802557,
-    "seen": 1794758406.5438967,
-    "ast_hash": "2ea2cd72ef4d0e59b1843346049a4f08",
+    "mtime": 1794761456.6181095,
+    "seen": 1794761692.5308483,
+    "ast_hash": "5e90e8b99cfd57d8e165378ede2557a1",
     "semantic_hash": ""
   },
   "src/lib/recommendationEngine.ts": {
@@ -408,9 +408,9 @@
     "semantic_hash": ""
   },
   "tests/features/search.spec.ts": {
-    "mtime": 1794757917.7440045,
-    "seen": 1794758406.5439138,
-    "ast_hash": "552419343aabf3da6c5d39b43d323557",
+    "mtime": 1794761603.5694005,
+    "seen": 1794761692.5308661,
+    "ast_hash": "859d68b6a7cdce4bead60582775872ee",
     "semantic_hash": ""
   },
   "tests/features/themeToggle.spec.ts": {

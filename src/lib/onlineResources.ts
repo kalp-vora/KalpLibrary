@@ -72,10 +72,121 @@ export function generateSpineStyle(
 }
 
 // -------------------------------------------------------------
-// MOVIE SOURCES (Cinemeta, Wikipedia, iTunes, TVmaze)
+// MOVIE SOURCES (TMDB, Cinemeta, iTunes, TVmaze)
 // -------------------------------------------------------------
 
-// 1. Cinemeta (Open community movie & series metadata database)
+// TMDB Genre lookup map
+const TMDB_GENRES: Record<number, string> = {
+  28: "Action",
+  12: "Adventure",
+  16: "Animation",
+  35: "Comedy",
+  80: "Crime",
+  99: "Documentary",
+  18: "Drama",
+  10751: "Family",
+  14: "Fantasy",
+  36: "History",
+  27: "Horror",
+  10402: "Music",
+  9648: "Mystery",
+  10749: "Romance",
+  878: "Sci-Fi",
+  10770: "TV Movie",
+  53: "Thriller",
+  10752: "War",
+  37: "Western",
+  10759: "Action & Adventure",
+  10762: "Kids",
+  10765: "Sci-Fi & Fantasy",
+};
+
+// 1. The Movie Database (TMDB)
+// Premium international movie & TV metadata with high-resolution posters
+export async function searchTMDB(query: string): Promise<SearchResultItem[]> {
+  const token =
+    process.env.TMDB_API_READ_ACCESS_TOKEN ||
+    process.env.TMDB_API_KEY ||
+    process.env.NEXT_PUBLIC_TMDB_API_READ_ACCESS_TOKEN ||
+    process.env.NEXT_PUBLIC_TMDB_API_KEY;
+
+  if (!token) return [];
+
+  const results: SearchResultItem[] = [];
+  try {
+    const isBearer = token.length > 50;
+    const url = isBearer
+      ? `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=1`
+      : `https://api.themoviedb.org/3/search/multi?api_key=${encodeURIComponent(token)}&query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=1`;
+
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+    };
+    if (isBearer) {
+      headers["Authorization"] = `Bearer ${token.trim()}`;
+    }
+
+    const res = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(4500),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.results)) {
+        for (const item of data.results) {
+          // Strictly skip people / cast so actors never appear as media cards
+          if (item.media_type === "person") continue;
+
+          const title = item.title || item.name || item.original_title || query;
+          const releaseDate = item.release_date || item.first_air_date || "";
+          let releaseYear = new Date().getFullYear();
+          if (releaseDate) {
+            const parsed = parseInt(releaseDate.substring(0, 4), 10);
+            if (!isNaN(parsed)) releaseYear = parsed;
+          }
+
+          const genres: string[] = [];
+          if (Array.isArray(item.genre_ids)) {
+            for (const id of item.genre_ids) {
+              if (TMDB_GENRES[id]) genres.push(TMDB_GENRES[id]);
+            }
+          }
+          if (genres.length === 0) genres.push("Cinema");
+
+          const posterUrl = item.poster_path
+            ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+            : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=600&auto=format&fit=crop&q=80";
+
+          const mediaType = item.media_type === "tv" ? "tv" : "movie";
+
+          results.push({
+            id: `tmdb-${item.id}`,
+            type: mediaType,
+            title,
+            creator: item.origin_country?.[0] ? `${item.origin_country[0]} Production` : "Studio Production",
+            releaseYear,
+            releaseDate: releaseDate || `${releaseYear}`,
+            genres: genres.slice(0, 3),
+            description:
+              item.overview ||
+              `A ${mediaType === "tv" ? "television series" : "cinematic feature"} (${releaseYear}) in the ${genres.join(", ")} genre.`,
+            posterUrl,
+            source: "TMDB",
+            lengthInfo: { runtimeMinutes: mediaType === "tv" ? 50 : 120 },
+            criticRating: item.vote_average ? Math.round(item.vote_average * 10) / 10 : 8.0,
+          });
+        }
+      }
+    }
+  } catch {
+    // Graceful fallback if TMDB is unreachable or rate-limited
+  }
+
+  return results;
+}
+
+// 2. Cinemeta (Open community movie & series metadata database)
 // Unmatched coverage for Bollywood, Korean, Asian, European & Hollywood cinema
 async function searchCinemeta(query: string): Promise<SearchResultItem[]> {
   const results: SearchResultItem[] = [];
@@ -99,24 +210,73 @@ async function searchCinemeta(query: string): Promise<SearchResultItem[]> {
       if (Array.isArray(data.metas)) metas.push(...data.metas);
     }
 
-    for (const item of metas.slice(0, 20)) {
+    // Enrich top candidates in parallel with full IMDb metadata (director, exact runtime, plot synopsis, real year)
+    const candidates = metas.slice(0, 10);
+    const enriched = await Promise.all(
+      candidates.map(async (item) => {
+        if (!item.id) return item;
+        try {
+          const detailType = item.type === "series" ? "series" : "movie";
+          const detailRes = await fetch(
+            `https://v3-cinemeta.strem.io/meta/${detailType}/${item.id}.json`,
+            { signal: AbortSignal.timeout(3500) }
+          );
+          if (detailRes.ok) {
+            const detailData = await detailRes.json();
+            if (detailData.meta) return { ...item, ...detailData.meta };
+          }
+        } catch {
+          // Fall back to catalog metadata
+        }
+        return item;
+      })
+    );
+
+    for (const item of enriched) {
       if (!item.name) continue;
-      const releaseYear = item.year ? parseInt(String(item.year).substring(0, 4), 10) || 2020 : 2020;
-      const genres = Array.isArray(item.genres) && item.genres.length ? item.genres.slice(0, 3) : ["Cinema"];
+      // Cinemeta returns release year in releaseInfo (e.g. "2015") or year
+      const rawYear = item.year || item.releaseInfo || "";
+      let releaseYear = 2020;
+      if (rawYear) {
+        const parsedYear = parseInt(String(rawYear).substring(0, 4), 10);
+        if (!isNaN(parsedYear)) releaseYear = parsedYear;
+      }
+
+      const rawGenres = item.genres || item.genre;
+      const genres = Array.isArray(rawGenres) && rawGenres.length ? rawGenres.slice(0, 3) : ["Cinema"];
       const posterUrl = item.poster || "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=600&auto=format&fit=crop&q=80";
 
+      // Parse director: Cinemeta detail returns director: ["Nishikant Kamat"]
+      let director = "Acclaimed Director";
+      if (Array.isArray(item.director) && item.director.length > 0) {
+        director = item.director.filter(Boolean).join(", ");
+      } else if (typeof item.director === "string" && item.director.trim()) {
+        director = item.director.trim();
+      } else if (item.creator) {
+        director = item.creator;
+      }
+
+      // Parse runtime: e.g. "163 min" or 163
+      let runtimeMinutes = 120;
+      if (item.runtime) {
+        const parsedRuntime = parseInt(String(item.runtime).replace(/\D/g, ""), 10);
+        if (!isNaN(parsedRuntime) && parsedRuntime > 0) {
+          runtimeMinutes = parsedRuntime;
+        }
+      }
+
       results.push({
-        id: `cinemeta-${item.id || Math.random().toString(36).substring(2, 8)}`,
-        type: "movie",
+        id: `cinemeta-${item.id || item.imdb_id || Math.random().toString(36).substring(2, 8)}`,
+        type: item.type === "series" ? "tv" : "movie",
         title: item.name,
-        creator: item.director || item.creator || (genres.includes("Animation") ? "Animation Studio" : "Acclaimed Director"),
+        creator: director,
         releaseYear,
-        releaseDate: `${releaseYear}`,
+        releaseDate: item.released ? item.released.substring(0, 10) : `${releaseYear}`,
         genres,
         description: item.description || `A celebrated film (${releaseYear}) in the ${genres.join(", ")} genre.`,
         posterUrl,
         source: "Cinemeta (Open Database)",
-        lengthInfo: { runtimeMinutes: item.runtime ? parseInt(String(item.runtime), 10) || 120 : 120 },
+        lengthInfo: { runtimeMinutes },
         criticRating: item.imdbRating ? parseFloat(item.imdbRating) : 8.5
       });
     }
@@ -232,19 +392,21 @@ async function searchTVmaze(query: string): Promise<SearchResultItem[]> {
   return results;
 }
 
-// Combined search across authentic open movie sources (Cinemeta, TVmaze, iTunes)
+// Combined search across authentic movie sources (TMDB, Cinemeta, TVmaze, iTunes)
 export async function searchOnlineMovies(query: string): Promise<SearchResultItem[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
   // Query authentic media databases in parallel
-  const [cinemetaRes, tvmazeRes, itunesRes] = await Promise.allSettled([
+  const [tmdbRes, cinemetaRes, tvmazeRes, itunesRes] = await Promise.allSettled([
+    searchTMDB(trimmed),
     searchCinemeta(trimmed),
     searchTVmaze(trimmed),
     searchItunesMovies(trimmed)
   ]);
 
   const candidates: SearchResultItem[] = [];
+  if (tmdbRes.status === "fulfilled") candidates.push(...tmdbRes.value);
   if (cinemetaRes.status === "fulfilled") candidates.push(...cinemetaRes.value);
   if (tvmazeRes.status === "fulfilled") candidates.push(...tvmazeRes.value);
   if (itunesRes.status === "fulfilled") candidates.push(...itunesRes.value);

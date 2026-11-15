@@ -3,24 +3,40 @@ import { LibraryPage } from "../pom/LibraryPage";
 import { TheaterPage } from "../pom/TheaterPage";
 
 test.describe("Feature Tests - Search Relevance, Authentic Sources & Media Boundaries", () => {
-  test("Search input exhibits 500ms debouncing and auto-suggestions dropdown", async ({ page }) => {
+  test("Search input exhibits 500ms debouncing, query-only suggestions, and non-overlapping buttons", async ({ page }) => {
     const library = new LibraryPage(page);
     await library.goto();
 
     await expect(library.searchInput).toBeVisible();
 
-    // Focus and type query
+    // 1. Verify when focused with empty query, no recent search history dropdown appears
     await library.searchInput.click();
+    await expect(page.locator(".absolute.left-0.right-0")).not.toBeVisible();
+
+    // 2. Focus and type query
     await library.searchInput.fill("Dune");
 
-    // The auto-suggestions dropdown should appear with matching or recent suggestions
+    // The auto-suggestions dropdown should appear with matching suggestions
     const dropdown = page.locator(".absolute.left-0.right-0");
     await expect(dropdown).toBeVisible({ timeout: 4000 });
 
-    // Clear search button should appear
-    await expect(library.clearSearchBtn).toBeVisible();
+    // Verify no "Recent" badge or clock history exists in dropdown
+    await expect(dropdown.locator("text=Recent")).not.toBeVisible();
 
-    // Clicking clear search resets the input
+    // 3. Verify clear button and search submit button are both visible and strictly non-overlapping
+    await expect(library.clearSearchBtn).toBeVisible();
+    await expect(library.searchSubmitBtn).toBeVisible();
+
+    const clearBox = await library.clearSearchBtn.boundingBox();
+    const searchBox = await library.searchSubmitBtn.boundingBox();
+    expect(clearBox).not.toBeNull();
+    expect(searchBox).not.toBeNull();
+    if (clearBox && searchBox) {
+      // Clear button must be positioned to the left of the search button with zero overlap
+      expect(clearBox.x + clearBox.width).toBeLessThanOrEqual(searchBox.x);
+    }
+
+    // 4. Clicking clear search resets the input
     await library.clearSearch();
     await expect(library.searchInput).toHaveValue("");
   });
@@ -66,6 +82,24 @@ test.describe("Feature Tests - Search Relevance, Authentic Sources & Media Bound
     await theater.clickNavTab("Lists");
     await expect(page).toHaveURL(/\/lists/);
     await expect(page.locator("body")).toContainText("Celestial Horizon Uncharted", { timeout: 8000 });
+  });
+
+  test("Theater search returns enriched metadata for Drishyam (director, year, runtime, description)", async ({ page }) => {
+    const theater = new TheaterPage(page);
+    await theater.goto();
+
+    await theater.searchMovie("Drishyam");
+
+    // Wait for search results
+    await expect(page.locator("h3:has-text('Drishyam')").first()).toBeVisible({ timeout: 12000 });
+
+    // Verify authentic year 2015 or 2013 is shown instead of defaulting to 2020
+    const yearLocator = page.locator("text=/2015|2013/").first();
+    await expect(yearLocator).toBeVisible();
+
+    // Verify authentic director (Nishikant Kamat or Jeethu Joseph) is shown
+    const directorLocator = page.locator("text=/Nishikant Kamat|Jeethu Joseph/i").first();
+    await expect(directorLocator).toBeVisible();
   });
 
   test("Wishlist and Journey prevent duplicate records", async ({ page }) => {

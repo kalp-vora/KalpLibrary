@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, FormEvent, KeyboardEvent } from "react";
-import { Search, X, Loader2, Sparkles, ArrowRight, Clock } from "lucide-react";
+import { Search, X, Loader2, Sparkles, ArrowRight } from "lucide-react";
 import { useDebounce } from "@/lib/useDebounce";
 import { MediaType } from "@/types";
-import { getRecentSearchQueries } from "@/lib/searchHistory";
 
 export interface SearchBarProps {
   value: string;
@@ -19,16 +18,10 @@ export interface SearchBarProps {
   className?: string;
 }
 
-interface SuggestionItem {
-  text: string;
-  isRecent: boolean;
-}
-
 export const SearchBar = ({
   value,
   onChange,
   onSearch,
-  type,
   placeholder = "Search...",
   isSearching = false,
   debounceMs = 500,
@@ -38,20 +31,12 @@ export const SearchBar = ({
 }: SearchBarProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
-  const [recentQueries, setRecentQueries] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 500ms debounce on keystroke
   const debouncedValue = useDebounce(value, debounceMs);
   const lastSearchedRef = useRef<string>("");
-
-  // Sync recent searches on open or type change
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setRecentQueries(getRecentSearchQueries(type, 5));
-    }
-  }, [type, isOpen]);
 
   // Auto-search effect on 500ms debounce
   useEffect(() => {
@@ -62,49 +47,25 @@ export const SearchBar = ({
     }
   }, [debouncedValue, autoSearch, onSearch]);
 
-  // Filter matching suggestions combining recent searches and candidate samples
-  const displayItems = useMemo<SuggestionItem[]>(() => {
+  // Only show suggestions based on active query, no recent search history
+  const displayItems = useMemo<string[]>(() => {
     const q = value.trim().toLowerCase();
-    const items: SuggestionItem[] = [];
+    // Do not show any dropdown when query is empty
+    if (!q) return [];
+
     const seen = new Set<string>();
-
-    if (!q) {
-      // Unfocused or empty query: show recent searches first, then top sample suggestions
-      for (const rq of recentQueries) {
-        const lower = rq.toLowerCase();
-        if (!seen.has(lower)) {
-          seen.add(lower);
-          items.push({ text: rq, isRecent: true });
-        }
-      }
-      for (const s of suggestions.slice(0, 4)) {
-        const lower = s.toLowerCase();
-        if (!seen.has(lower)) {
-          seen.add(lower);
-          items.push({ text: s, isRecent: false });
-        }
-      }
-      return items.slice(0, 6);
-    }
-
-    // When typing: match recent queries first, then catalog suggestions
-    for (const rq of recentQueries) {
-      if (rq.toLowerCase().includes(q) && !seen.has(rq.toLowerCase())) {
-        seen.add(rq.toLowerCase());
-        items.push({ text: rq, isRecent: true });
-      }
-    }
+    const matched: string[] = [];
 
     for (const s of suggestions) {
       const lower = s.toLowerCase();
       if (lower.includes(q) && !seen.has(lower)) {
         seen.add(lower);
-        items.push({ text: s, isRecent: false });
+        matched.push(s);
       }
     }
 
-    return items.slice(0, 7);
-  }, [value, recentQueries, suggestions]);
+    return matched.slice(0, 6);
+  }, [value, suggestions]);
 
   // Click outside to dismiss dropdown
   useEffect(() => {
@@ -145,7 +106,7 @@ export const SearchBar = ({
       setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : displayItems.length - 1));
     } else if (e.key === "Enter" && highlightedIndex >= 0) {
       e.preventDefault();
-      handleSelectSuggestion(displayItems[highlightedIndex].text);
+      handleSelectSuggestion(displayItems[highlightedIndex]);
     } else if (e.key === "Escape") {
       setIsOpen(false);
     }
@@ -161,7 +122,7 @@ export const SearchBar = ({
     <div ref={containerRef} className={`relative w-full ${className}`}>
       <form onSubmit={handleSubmit} className="relative flex items-center">
         {/* Left search icon */}
-        <Search className="w-4 h-4 text-text-subtle absolute left-4 pointer-events-none z-10" />
+        <Search className="w-4 h-4 text-text-subtle absolute left-4 pointer-events-none z-10 shrink-0" />
 
         {/* Search input field with auto-suggest */}
         <input
@@ -175,80 +136,72 @@ export const SearchBar = ({
             setHighlightedIndex(-1);
           }}
           onFocus={() => {
-            setIsOpen(true);
+            if (value.trim()) setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          className="w-full pl-11 pr-28 py-3 rounded-xl bg-surface border border-theme-border text-foreground placeholder-text-subtle text-xs sm:text-sm focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all shadow-sm"
+          className="w-full pl-11 pr-32 sm:pr-36 py-3 rounded-xl bg-surface border border-theme-border text-foreground placeholder-text-subtle text-xs sm:text-sm focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all shadow-sm"
         />
 
-        {/* Clear button if text entered */}
-        {value.trim().length > 0 && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="absolute right-24 p-1 rounded-full text-text-subtle hover:text-foreground hover:bg-surface-card transition-colors"
-            title="Clear search"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* Search submit button with loading state */}
-        <button
-          type="submit"
-          disabled={isSearching || !value.trim()}
-          className="absolute right-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-brand-primary hover:bg-brand-primary-hover text-brand-primary-fg disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm"
-        >
-          {isSearching ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Search className="w-3.5 h-3.5" />
+        {/* Right action group (Clear 'X' button + Submit 'Search' button) flex-aligned without overlapping */}
+        <div className="absolute right-1.5 flex items-center gap-1.5 z-10">
+          {value.trim().length > 0 && (
+            <button
+              type="button"
+              onClick={handleClear}
+              aria-label="Clear search"
+              className="p-1.5 rounded-lg text-text-subtle hover:text-foreground hover:bg-surface-card transition-colors flex items-center justify-center shrink-0"
+              title="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
           )}
-          <span>{isSearching ? "Searching..." : "Search"}</span>
-        </button>
+
+          <button
+            type="submit"
+            disabled={isSearching || !value.trim()}
+            className="px-3 sm:px-4 py-2 rounded-lg text-xs font-semibold bg-brand-primary hover:bg-brand-primary-hover text-brand-primary-fg disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
+          >
+            {isSearching ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+            ) : (
+              <Search className="w-3.5 h-3.5 shrink-0" />
+            )}
+            <span>{isSearching ? "Searching..." : "Search"}</span>
+          </button>
+        </div>
       </form>
 
-      {/* Auto-Suggestion Dropdown */}
+      {/* Auto-Suggestion Dropdown (Filtered only by active search query) */}
       {isOpen && displayItems.length > 0 && (
         <div className="absolute left-0 right-0 top-full mt-1.5 bg-surface-card border border-theme-border rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in backdrop-blur-md">
           <div className="px-3 py-1.5 border-b border-theme-border-subtle flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-text-subtle">
             <span className="flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-brand-primary" />
-              <span>Suggestions & History</span>
+              <span>Matching Suggestions</span>
             </span>
             <span>Press Enter ↵</span>
           </div>
 
           <div className="py-1 max-h-60 overflow-y-auto">
-            {displayItems.map((item, idx) => {
+            {displayItems.map((text, idx) => {
               const isHighlighted = idx === highlightedIndex;
               return (
                 <button
-                  key={`${item.text}-${idx}`}
+                  key={`${text}-${idx}`}
                   type="button"
                   onMouseEnter={() => setHighlightedIndex(idx)}
-                  onClick={() => handleSelectSuggestion(item.text)}
-                  className={`w-full px-3.5 py-2 text-left text-xs flex items-center justify-between transition-colors ${isHighlighted
+                  onClick={() => handleSelectSuggestion(text)}
+                  className={`w-full px-3.5 py-2 text-left text-xs flex items-center justify-between transition-colors ${
+                    isHighlighted
                       ? "bg-brand-primary/10 text-brand-primary font-medium"
                       : "text-foreground hover:bg-surface"
-                    }`}
+                  }`}
                 >
                   <span className="flex items-center gap-2 truncate">
-                    {item.isRecent ? (
-                      <Clock className="w-3.5 h-3.5 text-brand-secondary shrink-0" />
-                    ) : (
-                      <Search className="w-3 h-3 text-text-subtle shrink-0" />
-                    )}
-                    <span className="truncate">{item.text}</span>
+                    <Search className="w-3.5 h-3.5 text-brand-primary shrink-0" />
+                    <span className="truncate">{text}</span>
                   </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {item.isRecent && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-surface border border-theme-border font-mono text-brand-secondary">
-                        Recent
-                      </span>
-                    )}
-                    <ArrowRight className="w-3 h-3 text-text-subtle opacity-70" />
-                  </div>
+                  <ArrowRight className="w-3 h-3 text-text-subtle opacity-70 shrink-0" />
                 </button>
               );
             })}
