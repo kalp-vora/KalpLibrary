@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for security & validation
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 1. User Profiles & Global Preferences (Theme, Stats)
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isOwner(userId) &&
+        (!('themePreference' in request.resource.data) || request.resource.data.themePreference == null || request.resource.data.themePreference in ['dark', 'light']);
+      allow delete: if isOwner(userId);
+
+      // 2. User-specific Library Items (Watchlist, Readlist, Completed, Notes)
+      match /library_items/{itemId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) &&
+          request.resource.data.type in ['movie', 'book', 'tv', 'anime'] &&
+          request.resource.data.status in ['to_experience', 'in_progress', 'finished'] &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() > 0 &&
+          (!('userRating' in request.resource.data) || request.resource.data.userRating == null || (request.resource.data.userRating is number && request.resource.data.userRating >= 0 && request.resource.data.userRating <= 10));
+        allow delete: if isOwner(userId);
+
+        // 3. Extensible Subcollection for TV / Anime Episode Logs
+        match /episodes/{episodeId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      // 4. User Search History & Relevance Analytics
+      match /search_history/{searchId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // 4. Backwards-compatibility for shared / public catalogue items
+    match /media_items/{itemId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+  }
+}

@@ -1,0 +1,26 @@
+# Agent Directives & Enforcement Rules
+
+[code_exploration]
+mandatory_tool = "graphify"
+forbidden = ["random_rep", "shotgun_grep", "arbitrary_findstr"]
+guideline = "For any code navigation, relationship tracking, or architectural questions, always query graphify (graphify-out/graph.json) first before touching files."
+
+[engineering_discipline]
+mode = "ponytail"
+level = "full"
+guidelines = [
+  "Apply the Ponytail ladder: YAGNI -> reuse existing -> stdlib -> native platform -> installed dependencies -> minimum code.",
+  "Never add unrequested abstractions, extra files, or speculative boilerplate.",
+  "Prefer standard platform features (native inputs, standard fetch, CSS) over external libraries.",
+  "Zero dead code: No unused imports, unused functions, or dead code should ever be left behind.",
+  "Icon standard: Always give strict preference to lucide-react icons instead of manually creating or embedding SVGs."
+]
+
+[architecture]
+framework = "nextjs"
+version = "16.4.6"
+router = "app_router"
+bundler = "turbopack"
+state_management = "@tanstack/react-query"
+persistence = "firebase_firestore"
+
